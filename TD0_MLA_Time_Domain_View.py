@@ -47,6 +47,7 @@
 import numpy as np
 import sys, json, os
 import matplotlib.pyplot as plt
+import csv
 
 print("\n--------------------------------------------------")
 print("TD0 –Time-Domain Inspection of MLA Signal")
@@ -290,60 +291,85 @@ if "periods_s" in locals():
 
 else:
     print("[TD8] No jitter data available.")
+# ------------------------------------------------------------
+# TD0 – SAVE RESULTS TO CSV
+# ------------------------------------------------------------
+print("Saving TD0 results to td0_results.csv ...")
 
+# Build columns only for variables that actually exist
+columns = {}
+
+# Time in microseconds
+try:
+    columns["time_us"] = t * 1e6
+except:
+    pass
+
+# Raw signal before DC removal
+try:
+    columns["raw_signal"] = raw_signal
+except:
+    # If raw_signal was never stored separately
+    try:
+        columns["raw_signal"] = x + x_dc   # reconstruct raw
+    except:
+        pass
+
+# Cleaned signal (after DC removal)
+try:
+    columns["cleaned_signal"] = x
+except:
+    pass
+
+# Zero-crossing frequency estimate
+try:
+    columns["f0_td_hz"] = np.full_like(x, f0_td)
+except:
+    pass
+
+# Jitter (cycle-to-cycle)
+try:
+    columns["jitter_ns"] = jitter_ns
+except:
+    pass
+
+# DC offset
+try:
+    columns["dc_offset"] = np.full_like(x, x_dc)
+except:
+    pass
+
+# RMS
+try:
+    columns["rms"] = np.full_like(x, rms)
+except:
+    pass
+
+# ------------------------------------------------------------
+# PAD ALL COLUMNS to equal length
+# ------------------------------------------------------------
+max_len = max(len(v) for v in columns.values())
+
+for key in columns:
+    arr = columns[key]
+    if len(arr) < max_len:
+        columns[key] = np.pad(arr, (0, max_len - len(arr)), constant_values=np.nan)
+
+# ------------------------------------------------------------
+# WRITE CSV
+# ------------------------------------------------------------
+with open("td0_results.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(columns.keys())     # header
+    writer.writerows(zip(*columns.values()))
+
+print("Saved: td0_results.csv")
 # ------------------------------------------------------------
 # SAVE TD RESULTS TO CSV
 # ------------------------------------------------------------
 
-import csv
-import numpy as np
 
-print("Saving TD results to td_results.csv ...")
 
-# Collect available data safely
-csv_data = {}
-try:
-    csv_data["time_us"] = t * 1e6
-except:
-    pass
-
-try:
-    csv_data["signal"] = x
-except:
-    pass
-
-try:
-    csv_data["cleaned_signal"] = x_clean
-except:
-    pass
-
-try:
-    csv_data["envelope"] = envelope
-except:
-    pass
-
-try:
-    csv_data["periods_ns"] = periods * 1e9
-except:
-    pass
-
-# Find the longest array length
-max_len = max(len(v) for v in csv_data.values())
-
-# Pad arrays so all columns have equal length
-for key in csv_data:
-    arr = csv_data[key]
-    if len(arr) < max_len:
-        pad_len = max_len - len(arr)
-        csv_data[key] = np.pad(arr, (0, pad_len), constant_values=np.nan)
-
-# Write CSV
-with open("td_results.csv", "w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(csv_data.keys())  # header row
-    writer.writerows(zip(*csv_data.values()))
-
-print("Saved: td_results.csv")
 
 
 print("TD0 –Time-Domain Inspection of MLA Signal Completed")
