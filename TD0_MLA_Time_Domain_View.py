@@ -292,81 +292,62 @@ if "periods_s" in locals():
 else:
     print("[TD8] No jitter data available.")
 # ------------------------------------------------------------
-# TD0 – SAVE RESULTS TO CSV
+# TD0 – Save SMALL diagnostic CSV (safe)
 # ------------------------------------------------------------
-print("Saving TD0 results to td0_results.csv ...")
+import csv
+import numpy as np
 
-# Build columns only for variables that actually exist
-columns = {}
+print("Saving compact TD0 diagnostic: td0_summary.csv ...")
 
-# Time in microseconds
+# --- take only the first 2000 samples for inspection ---
+N_save = min(2000, len(x))
+t_us_small = t[:N_save] * 1e6
+raw_small  = raw_signal[:N_save]
+clean_small = x[:N_save]
+
+# --- summary values ---
+dc_offset_val = float(np.mean(raw_signal))
+rms_val = float(np.sqrt(np.mean(x**2)))
+zc_count = len(np.where((np.sign(x[:-1]) < 0) & (np.sign(x[1:]) > 0))[0])
+
+# jitter summary
 try:
-    columns["time_us"] = t * 1e6
+    jitter_mean = float(np.mean(jitter_ns))
+    jitter_std  = float(np.std(jitter_ns))
 except:
-    pass
+    jitter_mean = np.nan
+    jitter_std = np.nan
 
-# Raw signal before DC removal
-try:
-    columns["raw_signal"] = raw_signal
-except:
-    # If raw_signal was never stored separately
-    try:
-        columns["raw_signal"] = x + x_dc   # reconstruct raw
-    except:
-        pass
+# Write CSV
+with open("td0_summary.csv", "w", newline="") as f:
+    w = csv.writer(f)
 
-# Cleaned signal (after DC removal)
-try:
-    columns["cleaned_signal"] = x
-except:
-    pass
+    # header
+    w.writerow([
+        "time_us",
+        "raw_signal",
+        "cleaned_signal",
+        "dc_offset",
+        "rms",
+        "zero_crossings",
+        "jitter_mean_ns",
+        "jitter_std_ns"
+    ])
 
-# Zero-crossing frequency estimate
-try:
-    columns["f0_td_hz"] = np.full_like(x, f0_td)
-except:
-    pass
+    # rows (only the waveform data changes per row)
+    for i in range(N_save):
+        w.writerow([
+            t_us_small[i],
+            raw_small[i],
+            clean_small[i],
+            dc_offset_val,
+            rms_val,
+            zc_count,
+            jitter_mean,
+            jitter_std
+        ])
 
-# Jitter (cycle-to-cycle)
-try:
-    columns["jitter_ns"] = jitter_ns
-except:
-    pass
-
-# DC offset
-try:
-    columns["dc_offset"] = np.full_like(x, x_dc)
-except:
-    pass
-
-# RMS
-try:
-    columns["rms"] = np.full_like(x, rms)
-except:
-    pass
-
-# ------------------------------------------------------------
-# PAD ALL COLUMNS to equal length
-# ------------------------------------------------------------
-max_len = max(len(v) for v in columns.values())
-
-for key in columns:
-    arr = columns[key]
-    if len(arr) < max_len:
-        columns[key] = np.pad(arr, (0, max_len - len(arr)), constant_values=np.nan)
-
-# ------------------------------------------------------------
-# WRITE CSV
-# ------------------------------------------------------------
-with open("td0_results.csv", "w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(columns.keys())     # header
-    writer.writerows(zip(*columns.values()))
-
-print("Saved: td0_results.csv")
-# ------------------------------------------------------------
-# SAVE TD RESULTS TO CSV
-# ------------------------------------------------------------
+print("Saved: td0_summary.csv (small, safe)")
 
 
 
